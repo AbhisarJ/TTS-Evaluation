@@ -45,4 +45,4 @@ df["voiced ratio"] = compute_voiced(file_paths)
 # def variance(paths):
 #     for aud in paths
 
-print(df)
+print(df["path"][1])
