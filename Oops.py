@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
@@ -21,7 +22,7 @@ class Eval_data():
         for path in file_paths:
             relative_path = os.path.relpath(path, self.source)
             path_parts = relative_path.split(os.sep)
-            labels.append({"model": path_parts[0], "speaker": path_parts[1], "path": path})
+            labels.append({"model": path_parts[0], "speaker": path_parts[1], "language":path_parts[2], "path": path})
 
         df = pd.DataFrame(labels)
         return df
@@ -29,7 +30,7 @@ class Eval_data():
     def load_f0(self, audio):
         aud , sr = librosa.load(audio)
         f0, v1, v2 = librosa.pyin(aud, fmin=40, fmax=400, sr=sr)
-        return f0, v1
+        return f0
 
     # Variance
     def compute_variance(self, f0):
@@ -60,15 +61,70 @@ class Eval_data():
         return np.mean(np.abs(slope))
 
     def compute_metrics(self):
-        self.data["f0"] = self.load_f0((self.data["path"]))[0]
-        self.data["Variance"] = self.compute_variance(self.data["f0"])
-        self.data["Pitch Range"] = self.compute_pitch_range(self.data["f0"])
-        self.data["Voiced Ratio"] = self.compute_voicing_ratio(self.load_f0((self.data["path"])[1]))
-        self.data["Mean f0"] = self.compute_mean_f0(self.data["f0"])
-        self.data["Slope"] = self.compute_slope(self.data["f0"], 24000, 512)
-        return
+        f0_list = []
+        variance_list = []
+        pitch_range_list = []
+        mean_f0_list = []
+        slope_list = []
+
+        for audio_path in self.data["path"]:
+            try:
+                f0 = self.load_f0(audio_path)
+                f0_list.append(f0)
+                variance_list.append(self.compute_variance(f0))
+                pitch_range_list.append(self.compute_pitch_range(f0))
+                mean_f0_list.append(self.compute_mean_f0(f0))
+                slope_list.append(self.compute_slope(f0, 24000, 512))
+            except Exception as e:
+                print(f"Error processing file {audio_path}: {e}")
+                f0_list.append(None)
+                variance_list.append(None)
+                pitch_range_list.append(None)
+                mean_f0_list.append(None)
+                slope_list.append(None)
+
+        self.data["f0"] = f0_list
+        self.data["Variance"] = variance_list
+        self.data["Pitch Range"] = pitch_range_list
+        self.data["Mean f0"] = mean_f0_list
+        self.data["Slope"] = slope_list
+
+    def pitch_graph(self,group):
+        x=[]
+        y=[]
+        plt.figure()
+        model_pitch = self.data.groupby(group)
+        for model, dt in model_pitch:
+            x.append(model)
+            y.append(np.mean(dt["Pitch Range"]))
+        plt.bar(x,y)
+        plt.show()
+
+    def variance_graph(self):
+        count=0
+        plt.figure()
+        grouped = self.data.groupby("model")
+        for model, dt in grouped:
+            count+=1
+            plt.subplot(3,1,count)
+            plt.title(str(model))
+            plt.plot(dt["Variance"])
+        plt.show()
+
+    def global_patterns(self):
+        plt.figure()
+        plt.subplot(5,1,1)
+
+    def compare_contours(self, val1, val2):
+        audio1 = (self.data.iloc[val1])["path"]
+        audio2 = (self.data.iloc[val2])["path"]
+        plt.figure()
 
 source_dir = r"C:\Users\Hii\PycharmProjects\PythonProject\final_results"
 new_dataset = Eval_data(Path(source_dir))
-# print(new_dataset.data["path"][0])
 new_dataset.compute_metrics()
+
+# new_dataset.data.to_csv("Test Data.csv", index=False)
+
+new_dataset.variance_graph()
+

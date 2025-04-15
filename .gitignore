@@ -1,3 +1,4 @@
 final_results/
 .venv/
 .idea/
+*.csv
