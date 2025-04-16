@@ -115,10 +115,13 @@ class Eval_data():
         plt.figure()
         plt.subplot(5,1,1)
 
-    def compare_contours(self, val1, val2):
-        audio1 = (self.data.iloc[val1])["path"]
-        audio2 = (self.data.iloc[val2])["path"]
+    def generate_contour(self, val):
+        audio_path = self.data.iloc[val, "path"]
         plt.figure()
+
+
+
+
 
 source_dir = r"C:\Users\Hii\PycharmProjects\PythonProject\final_results"
 new_dataset = Eval_data(Path(source_dir))
@@ -127,4 +130,3 @@ new_dataset.compute_metrics()
 # new_dataset.data.to_csv("Test Data.csv", index=False)
 
 new_dataset.variance_graph()
-
