@@ -2,3 +2,5 @@ final_results/
 .venv/
 .idea/
 *.csv
+*.wav
+main.py

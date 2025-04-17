@@ -1,9 +1,12 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
-from pathlib import Path
 import librosa
+import matplotlib.pyplot as plt
+from Segment_analysis import Audio_files
+import parselmouth
+from parselmouth.praat import call
+
 
 class Eval_data():
     def __init__(self, source:os.PathLike):
@@ -66,6 +69,7 @@ class Eval_data():
         pitch_range_list = []
         mean_f0_list = []
         slope_list = []
+        h_list=[]
 
         for audio_path in self.data["path"]:
             try:
@@ -75,6 +79,7 @@ class Eval_data():
                 pitch_range_list.append(self.compute_pitch_range(f0))
                 mean_f0_list.append(self.compute_mean_f0(f0))
                 slope_list.append(self.compute_slope(f0, 24000, 512))
+                h_list.append(self.compute_harmonics(audio_path))
             except Exception as e:
                 print(f"Error processing file {audio_path}: {e}")
                 f0_list.append(None)
@@ -82,51 +87,63 @@ class Eval_data():
                 pitch_range_list.append(None)
                 mean_f0_list.append(None)
                 slope_list.append(None)
+                h_list.append(None)
 
         self.data["f0"] = f0_list
         self.data["Variance"] = variance_list
         self.data["Pitch Range"] = pitch_range_list
         self.data["Mean f0"] = mean_f0_list
         self.data["Slope"] = slope_list
+        self.data["Consistency"] = h_list
 
-    def pitch_graph(self,group):
-        x=[]
-        y=[]
+    def compute_harmonics(self, path):
+        sound = parselmouth.Sound(path)
+        harmonicity = sound.to_harmonicity()
+
+        # Extract HNR value (average across the signal)
+        hnr = call(harmonicity, "Get mean", 0, 0)
+        h_score=0
+        if 0<hnr<10:
+            h_score=(hnr*2)/10
+        if 10<hnr<15:
+            h_score=(((hnr-10)*2)/5)+2
+        if 15<hnr<30:
+            h_score=(((hnr-15))/15)+4
+        return round(h_score, 2)
+
+    def Emotional_score(self, val):
+        path = self.data.loc[val, "path"]
+        y, sr = librosa.load(path, sr=None)
+
+        # Extract F0 contour using librosa.pyin
+        f0, voiced_flag, voiced_probs = librosa.pyin(y, fmin=75, fmax=500, sr=sr)
+
+        # Generate time points for the F0 contour
+        time = np.linspace(0, len(y) / sr, len(f0))
+
+        # Remove NaN values (unvoiced segments)
+        voiced_f0 = f0[~np.isnan(f0)]
+        voiced_time = time[~np.isnan(f0)]
+
+        # Compute slopes
+        slopes = np.diff(voiced_f0) / np.diff(voiced_time)
+
+        # Metrics
+        mean_slope = np.mean(slopes)
+        slope_variance = np.var(slopes)
+        steep_slope_proportion = np.sum(np.abs(slopes) > 10) / len(slopes)
+
+        print(slope_variance)
+
+    def compare_contours(self, index1, index2):
         plt.figure()
-        model_pitch = self.data.groupby(group)
-        for model, dt in model_pitch:
-            x.append(model)
-            y.append(np.mean(dt["Pitch Range"]))
-        plt.bar(x,y)
+        audio1 = Audio_files(self.data.loc[index1, "path"])
+        audio2 = Audio_files(self.data.loc[index2, "path"])
+        audio1.compute_contour("Divya test 1")
+        audio2.compute_contour("Divya test 2")
+        plt.legend()
         plt.show()
 
-    def variance_graph(self):
-        count=0
-        plt.figure()
-        grouped = self.data.groupby("model")
-        for model, dt in grouped:
-            count+=1
-            plt.subplot(3,1,count)
-            plt.title(str(model))
-            plt.plot(dt["Variance"])
-        plt.show()
-
-    def global_patterns(self):
-        plt.figure()
-        plt.subplot(5,1,1)
-
-    def generate_contour(self, val):
-        audio_path = self.data.iloc[val, "path"]
-        plt.figure()
 
 
 
-
-
-source_dir = r"C:\Users\Hii\PycharmProjects\PythonProject\final_results"
-new_dataset = Eval_data(Path(source_dir))
-new_dataset.compute_metrics()
-
-# new_dataset.data.to_csv("Test Data.csv", index=False)
-
-new_dataset.variance_graph()
